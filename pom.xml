@@ -31,7 +31,18 @@
 		</dependency>
 
 		<!-- Usual dependencies:
-		JPA - Starter Web - DevTools - MySQL - Lombok - Starter Test - Model Mapper -->
+		Thymeleaf - Starter Web - DevTools - MySQL - Lombok - Starter Test - Model Mapper -->
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.hibernate.orm</groupId>
+			<artifactId>hibernate-core</artifactId>
+			<version>6.2.1.Final</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

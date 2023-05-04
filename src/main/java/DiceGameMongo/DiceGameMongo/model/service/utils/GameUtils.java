@@ -4,12 +4,15 @@ import DiceGameMongo.DiceGameMongo.model.domain.Game;
 import DiceGameMongo.DiceGameMongo.model.domain.Player;
 import DiceGameMongo.DiceGameMongo.model.dto.GameDTO;
 import DiceGameMongo.DiceGameMongo.model.dto.PlayerDTO;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
 public interface GameUtils {
+
+    Player getOptionalPlayer(ObjectId id);
 
     PlayerDTO playerConvertDTO(Player player);
 

@@ -8,4 +8,8 @@ public class NoContentFoundException extends RuntimeException{
         super(message);
     }
 
+    @Override
+    public String getMessage() {
+        return message;
+    }
 }

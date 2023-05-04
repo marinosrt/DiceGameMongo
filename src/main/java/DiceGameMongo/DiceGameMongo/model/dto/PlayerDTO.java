@@ -3,6 +3,8 @@ package DiceGameMongo.DiceGameMongo.model.dto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.bson.types.ObjectId;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -11,11 +13,12 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class PlayerDTO {
 
-    private String id;
+    private ObjectId id;
 
     private String name;
 
-    private LocalDateTime registration;
+    @CreationTimestamp
+    private LocalDateTime registration = LocalDateTime.now();
 
     private String successRate;
 

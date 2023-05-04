@@ -2,12 +2,16 @@ package DiceGameMongo.DiceGameMongo.controller;
 
 import DiceGameMongo.DiceGameMongo.model.dto.GameDTO;
 import DiceGameMongo.DiceGameMongo.model.dto.PlayerDTO;
+import DiceGameMongo.DiceGameMongo.model.exception.NoContentFoundException;
+import DiceGameMongo.DiceGameMongo.model.exception.PlayerNotFoundException;
+import DiceGameMongo.DiceGameMongo.model.exception.UnexpectedErrorException;
 import DiceGameMongo.DiceGameMongo.model.service.GameService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -52,18 +56,19 @@ public class GameController {
             }
     )
     public ResponseEntity<?> createPlayer (@RequestBody PlayerDTO playerIn){
-
         PlayerDTO playerResponse = null;
 
         try {
             playerResponse = gameService.createPlayer(playerIn);
-            if (playerResponse == null){
-                responseEntity = new ResponseEntity<>(new WrongThreadException("This player already exist into the Database. Please, enter a valid name."), HttpStatus.NOT_ACCEPTABLE);
+            if (playerResponse == null) {
+                throw new WrongThreadException("This player already exist into the Database. Please, enter a valid name.");
             } else {
                 responseEntity = new ResponseEntity<>(playerResponse, HttpStatus.CREATED);
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>(ResponseEntity.ofNullable(playerResponse), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (WrongThreadException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_ACCEPTABLE);
+        } catch (UnexpectedErrorException e) {
+            responseEntity = new ResponseEntity<>("Internal server error while creating a player", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -91,18 +96,22 @@ public class GameController {
                     )
             }
     )
-    public ResponseEntity<?> playGame (@PathVariable("id") String id){
+    public ResponseEntity<?> playGame (@PathVariable("id") ObjectId id){
+        boolean exist;
         GameDTO gameResponse;
 
         try {
-            gameResponse = gameService.playGame(id);
-            if (gameResponse != null){
+            exist = gameService.playerExistById(id);
+            if (exist) {
+                gameResponse = gameService.playGame(id);
                 responseEntity = new ResponseEntity<>(gameResponse, HttpStatus.CREATED);
             } else {
-                responseEntity = new ResponseEntity<>("This player does not exist into the Database", HttpStatus.NOT_FOUND);
+                throw new PlayerNotFoundException("This player does not exist into the Database", id);
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (PlayerNotFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (UnexpectedErrorException e) {
+            responseEntity = new ResponseEntity<>("Internal Server Error while rolling dices", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -136,13 +145,15 @@ public class GameController {
         try {
             playersList = gameService.getAllPlayers();
 
-            if (playersList == null){
-                responseEntity = new ResponseEntity<>("No players signed up to the game just yet.", HttpStatus.NO_CONTENT);
+            if (playersList == null) {
+                throw new NoContentFoundException("No players signed up to the game just yet.");
             } else {
                 responseEntity = new ResponseEntity<>(playersList, HttpStatus.OK);
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (NoContentFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NO_CONTENT);
+        } catch (UnexpectedErrorException e) {
+            responseEntity = new ResponseEntity<>("Internal Server Error while retrieving the players", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -174,21 +185,32 @@ public class GameController {
                     )
             }
     )
-    public ResponseEntity<?> getGamesFromIdPlayer(@PathVariable("id") String id){
+    public ResponseEntity<?> getGamesFromIdPlayer(@PathVariable("id") ObjectId id){
+        boolean exist;
         List<GameDTO> gamesPlayerList;
 
-        try {
-            gamesPlayerList = gameService.getGamesPlayerId(id);
 
-            if (gamesPlayerList == null) {
-                responseEntity = new ResponseEntity<>("No games for this player found into the Database", HttpStatus.NOT_FOUND);
-            } else if (gamesPlayerList.size() == 0) {
-                responseEntity = new ResponseEntity<>("This player doesn't exist into the Database", HttpStatus.NOT_ACCEPTABLE);
+        try {
+            exist = gameService.playerExistById(id);
+
+            if (!exist) {
+                throw new PlayerNotFoundException("This player doesn't exist into the Database", id);
             } else {
-                responseEntity = new ResponseEntity<>(gamesPlayerList, HttpStatus.OK);
+                gamesPlayerList = gameService.getGamesPlayerId(id);
+
+                if (gamesPlayerList == null) {
+                    throw new NoContentFoundException("No games for this player found into the Database");
+                } else {
+                    responseEntity = new ResponseEntity<>(gamesPlayerList, HttpStatus.OK);
+                }
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+
+        } catch (PlayerNotFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_ACCEPTABLE);
+        } catch (NoContentFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (UnexpectedErrorException e) {
+            responseEntity = new ResponseEntity<>("Internal Server Error while retrieving games from this player", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -208,7 +230,11 @@ public class GameController {
                     ),
                     @ApiResponse(
                             responseCode = "204 - NO_CONTENT",
-                            description = "No results found into the Database to get the average rate Response."
+                            description = "No players played any game yet to be able to calculate the average value Response."
+                    ),
+                    @ApiResponse(
+                            responseCode = "404 - NOT_FOUND",
+                            description = "Players not found into the Database Response."
                     ),
                     @ApiResponse(
                             responseCode = "500 - INTERNAL_SERVER_ERROR",
@@ -222,13 +248,17 @@ public class GameController {
         try {
             averageAllPlayers = gameService.getAverageAllPlayers();
 
-            if (!averageAllPlayers.equalsIgnoreCase("")){
-                responseEntity = new ResponseEntity<>(averageAllPlayers, HttpStatus.OK);
-            } else {
-                responseEntity = new ResponseEntity<>("No results found", HttpStatus.NO_CONTENT);
+            switch (averageAllPlayers) {
+                case "" -> throw new PlayerNotFoundException("No players found");
+                case "none" -> throw new NoContentFoundException("No player rolled the dices just yet.");
+                default -> responseEntity = new ResponseEntity<>(averageAllPlayers, HttpStatus.OK);
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (PlayerNotFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (NoContentFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NO_CONTENT);
+        } catch (UnexpectedErrorException e) {
+            responseEntity = new ResponseEntity<>("Internal Server Error while getting the average of all the players.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -262,13 +292,15 @@ public class GameController {
         try {
             playerResponse = gameService.getBestLooser();
 
-            if (playerResponse == null){
-                responseEntity = new ResponseEntity<>("No results found", HttpStatus.NO_CONTENT);
+            if (playerResponse == null) {
+                throw new NoContentFoundException("No results found");
             } else {
                 responseEntity = new ResponseEntity<>(playerResponse, HttpStatus.OK);
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (NoContentFoundException e) {
+            responseEntity = new ResponseEntity<>("No results found", HttpStatus.NO_CONTENT);
+        } catch (Exception e) {
+            responseEntity = new ResponseEntity<>("Internal Server Error while getting the best loser", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -303,12 +335,14 @@ public class GameController {
             playerResponse = gameService.getBestWinner();
 
             if (playerResponse == null){
-                responseEntity = new ResponseEntity<>("No results found", HttpStatus.NO_CONTENT);
+                throw new NoContentFoundException("No results found");
             } else {
                 responseEntity = new ResponseEntity<>(playerResponse, HttpStatus.OK);
             }
+        } catch (NoContentFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NO_CONTENT);
         } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+            responseEntity = new ResponseEntity<>("Internal Server Error while getting the best winner", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -336,19 +370,23 @@ public class GameController {
                     )
             }
     )
-    public ResponseEntity<?> updatePlayersName(@PathVariable("id") String id, @RequestBody PlayerDTO playerDTO){
+    public ResponseEntity<?> updatePlayersName(@PathVariable("id") ObjectId id, @RequestBody PlayerDTO playerDTO){
+        boolean exist;
         PlayerDTO playerResponse;
 
         try {
-            playerResponse = gameService.updatePlayerId(playerDTO, id);
+            exist = gameService.playerExistById(id);
 
-            if (playerResponse == null){
-                responseEntity = new ResponseEntity<>("No such player into the Database", HttpStatus.NOT_FOUND);
-            } else {
+            if (exist) {
+                playerResponse = gameService.updatePlayerId(playerDTO, id);
                 responseEntity = new ResponseEntity<>(playerResponse, HttpStatus.ACCEPTED);
+            } else {
+                throw new PlayerNotFoundException("No such player into the Database", id);
             }
-        } catch (Exception e){
-            responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (PlayerNotFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            responseEntity = new ResponseEntity<>("Internal Server Error while updating this player.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return responseEntity;
@@ -382,19 +420,23 @@ public class GameController {
                     )
             }
     )
-    public ResponseEntity<?> deleteGamesPlayerId(@PathVariable("id") String id){
+    public ResponseEntity<?> deleteGamesPlayerId(@PathVariable("id") ObjectId id){
         int deleted;
 
         try {
             deleted = gameService.deleteGamesId(id);
 
-            switch (deleted){
-                case 0 -> responseEntity = new ResponseEntity<>("Player not found into the Database", HttpStatus.NOT_FOUND);
-                case 1 -> responseEntity = new ResponseEntity<>("This player still hasn't played any game.", HttpStatus.NO_CONTENT);
+            switch (deleted) {
+                case 0 -> throw new PlayerNotFoundException("Player not found into the Database", id);
+                case 1 -> throw new NoContentFoundException("This player still hasn't played any game.");
                 case 2 -> responseEntity = new ResponseEntity<>("Games deleted!", HttpStatus.OK);
             }
 
-        } catch (Exception e){
+        } catch (PlayerNotFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (NoContentFoundException e) {
+            responseEntity = new ResponseEntity<>(e.getMessage(), HttpStatus.NO_CONTENT);
+        } catch (Exception e) {
             responseEntity = new ResponseEntity<>("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 

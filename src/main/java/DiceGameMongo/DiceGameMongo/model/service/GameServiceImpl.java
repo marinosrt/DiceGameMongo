@@ -4,11 +4,10 @@ import DiceGameMongo.DiceGameMongo.model.domain.Game;
 import DiceGameMongo.DiceGameMongo.model.domain.Player;
 import DiceGameMongo.DiceGameMongo.model.dto.GameDTO;
 import DiceGameMongo.DiceGameMongo.model.dto.PlayerDTO;
-import DiceGameMongo.DiceGameMongo.model.exception.NoContentFoundException;
-import DiceGameMongo.DiceGameMongo.model.exception.PlayerNotFoundException;
-import DiceGameMongo.DiceGameMongo.model.repository.GamesRepository;
+import DiceGameMongo.DiceGameMongo.model.exception.UnexpectedErrorException;
 import DiceGameMongo.DiceGameMongo.model.repository.PlayersRepository;
 import DiceGameMongo.DiceGameMongo.model.service.utils.GameUtils;
+import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,53 +23,52 @@ public class GameServiceImpl implements GameService, GameUtils {
 
     private PlayersRepository playersRepository;
 
-    private GamesRepository gamesRepository;
-
-    public GameServiceImpl(PlayersRepository playersRepository, GamesRepository gamesRepository) {
+    public GameServiceImpl(PlayersRepository playersRepository) {
         super();
         this.playersRepository = playersRepository;
-        this.gamesRepository = gamesRepository;
     }
 
-    //region SERVICE
+    //region SERVICE CONTROLLER
 
     @Override
     public PlayerDTO createPlayer(PlayerDTO playerDTO) {
         Player playerRequest;
         PlayerDTO playerDtoResponse;
 
-        playerRequest = playerConvertEntity(playerDTO);
-        playerRequest.setName(setPlayersName(playerRequest));
+        try {
+            playerRequest = playerConvertEntity(playerDTO);
+            playerRequest.setName(setPlayersName(playerRequest));
 
-        if (playerRequest.getName().equalsIgnoreCase("")) {
-            return null;
-        } else {
-            playersRepository.save(playerRequest);
-            playerDtoResponse = playerConvertDTO(playerRequest);
-            playerDtoResponse.setSuccessRate(calculateRate(playerDtoResponse));
+            if (playerRequest.getName().equalsIgnoreCase("")) {
+                return null;
+            } else {
+                playersRepository.save(playerRequest);
+                playerDtoResponse = playerConvertDTO(playerRequest);
+                playerDtoResponse.setSuccessRate(calculateRate(playerDtoResponse));
 
-            return playerDtoResponse;
+                return playerDtoResponse;
+            }
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
         }
+
     }
 
     @Override
-    public GameDTO playGame(String id) {
+    public GameDTO playGame(ObjectId id) {
         Player playerRequest;
-        Game game = null;
+        Game game;
 
         try {
-            if (playersRepository.existsById(id)){
-                Optional<Player> playerData = playersRepository.findById(id);
-                playerRequest = playerData.get();
-                game = new Game(playerRequest);
-                playerRequest.addGame(game);
-                gamesRepository.save(game);
-            }
+            playerRequest = getOptionalPlayer(id);
+            game = new Game();
+            playerRequest.addGame(game);
+            playersRepository.save(playerRequest);
 
             return gameConvertDTO(game);
 
-        } catch (PlayerNotFoundException e) {
-            throw new PlayerNotFoundException("Player", id);
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
         }
     }
 
@@ -84,67 +82,63 @@ public class GameServiceImpl implements GameService, GameUtils {
             } else {
                 returnList = new ArrayList<>();
                 for (Player player : playersRepository.findAll().stream().toList()) {
-                    returnList.add(player.toString());
+                    returnList.add(player.toString() + ". Winning Rate: " + calculateRate(playerConvertDTO(player)));
                 }
             }
 
             return returnList;
 
-        } catch (NoContentFoundException e) {
-            throw new NoContentFoundException("Unable to access players repository");
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
         }
     }
 
     @Override
-    public List<GameDTO> getGamesPlayerId(String id) {
+    public List<GameDTO> getGamesPlayerId(ObjectId id) {
         Player playerRequest;
-        List<GameDTO> gamesList;
+        List<GameDTO> gamesList = null;
 
         try {
-            if (playersRepository.existsById(id)) {
-                if (gamesRepository.findAll().stream().noneMatch(game -> game.getPlayer().getId() == id)) {
-                    gamesList = null;
-                } else {
-                    Optional<Player> playerData = playersRepository.findById(id);
-                    playerRequest = playerData.get();
+            playerRequest = getOptionalPlayer(id);
 
-                    gamesList = gamesRepository.findAll().stream()
-                            .filter(game -> Objects.equals(game.getPlayer().getId(), playerRequest.getId()))
-                            .toList()
-                            .stream().map(this::gameConvertDTO)
-                            .collect(Collectors.toList());
-                }
-            } else {
-                gamesList = new ArrayList<>();
+            if (!playerRequest.getGameList().isEmpty()) {
+                gamesList = playerRequest.getGameList().stream().map(this::gameConvertDTO).collect(Collectors.toList());
             }
 
             return gamesList;
 
-        } catch (PlayerNotFoundException e) {
-            throw new PlayerNotFoundException("Player", id);
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
         }
     }
 
     @Override
     public String getAverageAllPlayers() {
-        String output;
+        String output = "";
+        List<Player> playerList;
+        List<Game> gameList = new ArrayList<>();
 
         try {
-            if (!gamesRepository.findAll().isEmpty()){
-                double average = gamesRepository.findAll().stream()
-                        .mapToDouble(game -> game.getStatus().equals("WINNER") ? 1 : 0)
-                        .average()
-                        .orElse(0.0) * 100.0;
+            if (!playersRepository.findAll().isEmpty()) {
+                playerList = playersRepository.findAll().stream().toList();
 
-                output = String.format("%.2f", average);
-            } else {
-                output = "";
+                if (playerList.stream().anyMatch(player -> !player.getGameList().isEmpty())) {
+                    for (Player player : playerList) {
+                        if (!player.getGameList().isEmpty()) {
+                            gameList.addAll(player.getGameList());
+                        }
+                    }
+
+                    output = getAverageRate(gameList);
+                } else {
+                    output = "none";
+                }
             }
 
             return output;
 
-        } catch (NoContentFoundException e) {
-            throw new NoContentFoundException("Unable to access games repository");
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
         }
     }
 
@@ -175,59 +169,68 @@ public class GameServiceImpl implements GameService, GameUtils {
     }
 
     @Override
-    public PlayerDTO updatePlayerId(PlayerDTO playerDTO, String id) {
+    public PlayerDTO updatePlayerId(PlayerDTO playerDTO, ObjectId id) {
         Player playerRequest;
         PlayerDTO playerDtoResponse;
 
         try {
-            if (playersRepository.existsById(id)) {
-                Optional<Player> playerData = playersRepository.findById(id);
-                playerRequest = playerData.get();
-                playerRequest.setName(playerDTO.getName());
-                playersRepository.save(playerRequest);
+            playerRequest = getOptionalPlayer(id);
+            playerRequest.setName(playerDTO.getName());
+            playersRepository.save(playerRequest);
 
-                playerDtoResponse = playerConvertDTO(playerRequest);
-                playerDtoResponse.setSuccessRate(calculateRate(playerDtoResponse));
-            } else {
-                playerDtoResponse = null;
-            }
+            playerDtoResponse = playerConvertDTO(playerRequest);
+            playerDtoResponse.setSuccessRate(calculateRate(playerDtoResponse));
 
             return playerDtoResponse;
 
-        } catch (PlayerNotFoundException e) {
-            throw new PlayerNotFoundException("Player", id);
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
         }
     }
 
     @Override
-    public int deleteGamesId(String id) {
+    public int deleteGamesId(ObjectId id) {
         int found = 0;
+        Player playerRequest;
 
         try {
-            if (playersRepository.existsById(id)){
-                if (gamesRepository.findAll().stream().anyMatch(game -> Objects.equals(game.getPlayer().getId(), id))){
+            if (playerExistById(id)) {
+                playerRequest = getOptionalPlayer(id);
 
-                    gamesRepository.findAll().stream()
-                            .filter(game -> Objects.equals(game.getPlayer().getId(), id))
-                            .toList()
-                            .forEach(game -> gamesRepository.deleteById(game.getId()));
+                if (!playerRequest.getGameList().isEmpty()) {
+                    playerRequest.deleteGames();
+                    playersRepository.save(playerRequest);
 
                     found = 2;
                 } else {
                     found = 1;
                 }
             }
-        } catch (Exception e){
-            throw new PlayerNotFoundException("Player", id);
-        }
 
-        return found;
+            return found;
+
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Unexpected error!");
+        }
+    }
+
+    @Override
+    public boolean playerExistById(ObjectId id) {
+
+        return playersRepository.existsById(id);
+
     }
 
     //endregion SERVICE
 
 
     //region UTILS
+
+    @Override
+    public Player getOptionalPlayer(ObjectId id) {
+        Optional<Player> playerData = playersRepository.findById(id);
+        return playerData.get();
+    }
 
     @Override
     public PlayerDTO playerConvertDTO(Player player) {
@@ -257,29 +260,40 @@ public class GameServiceImpl implements GameService, GameUtils {
 
             return playerDTOList;
 
-        } catch (NoContentFoundException e) {
-            throw new NoContentFoundException("Unable to access players repository");
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Something went wrong while trying to update the player.");
         }
     }
 
     @Override
     public String calculateRate(PlayerDTO playerDTO) {
-        try {
-            if (gamesRepository.findAll().stream().anyMatch(game -> game.getPlayer().getId() == playerDTO.getId())) {
-                double result = gamesRepository.findAll().stream()
-                        .filter(game -> game.getPlayer().getId() == playerDTO.getId())
-                        .toList().stream()
-                        .mapToDouble(game -> game.getStatus().equals("WINNER") ? 1 : 0)
-                        .average()
-                        .orElse(0.0) * 100;
+        String output = "";
+        Player player;
 
-                return String.format(String.valueOf(result), result);
-            } else {
-                return "Still haven't played any game.";
+        try {
+            if (playerExistById(playerDTO.getId())) {
+                player = getOptionalPlayer(playerDTO.getId());
+
+                if (!player.getGameList().isEmpty()) {
+                    output = getAverageRate(player.getGameList());
+                } else {
+                    output = "Still haven't played any game.";
+                }
             }
-        } catch (NoContentFoundException e) {
-            throw new NoContentFoundException("Unable to access games repository");
+
+            return output;
+        } catch (UnexpectedErrorException e) {
+            throw new UnexpectedErrorException("Something went wrong while trying to update the player.");
         }
+    }
+
+    public String getAverageRate(List<Game> gameList) {
+        double result = gameList.stream()
+                .mapToDouble(game -> game.getStatus().equals("WINNER") ? 1 : 0)
+                .average()
+                .orElse(0.0) * 100.0;
+
+        return String.format("%.2f%%", result);
     }
 
     @Override

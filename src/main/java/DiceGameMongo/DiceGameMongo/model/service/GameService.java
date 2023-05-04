@@ -2,6 +2,7 @@ package DiceGameMongo.DiceGameMongo.model.service;
 
 import DiceGameMongo.DiceGameMongo.model.dto.GameDTO;
 import DiceGameMongo.DiceGameMongo.model.dto.PlayerDTO;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,11 +12,11 @@ public interface GameService {
 
     PlayerDTO createPlayer(PlayerDTO playerDTO);
 
-    GameDTO playGame(String id);
+    GameDTO playGame(ObjectId id);
 
     List<String> getAllPlayers();
 
-    List<GameDTO> getGamesPlayerId(String id);
+    List<GameDTO> getGamesPlayerId(ObjectId id);
 
     String getAverageAllPlayers();
 
@@ -23,8 +24,10 @@ public interface GameService {
 
     PlayerDTO getBestWinner();
 
-    PlayerDTO updatePlayerId(PlayerDTO playerDTO, String id);
+    PlayerDTO updatePlayerId(PlayerDTO playerDTO, ObjectId id);
 
-    int deleteGamesId(String id);
+    int deleteGamesId(ObjectId id);
+
+    boolean playerExistById(ObjectId id);
 
 }
