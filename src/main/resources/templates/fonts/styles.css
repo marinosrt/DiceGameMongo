@@ -1,0 +1,55 @@
+@font-face {
+  font-family: 'MyFont';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/roboto/v27/KFOmCnqEu92Fr1Mu4mxP.ttf) format('truetype');
+}
+
+body {
+            background-color: black;
+            color: white;
+            text-align: center;
+        }
+        .header-img {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            margin-top: 50px;
+            margin-bottom: 50px;
+            width: 50%;
+        }
+        .header {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 50px;
+        }
+        .player-list {
+            display: inline-block;
+            margin-left: 100px;
+            margin-top: 50px;
+            margin-bottom: 50px;
+            text-align: left;
+        }
+        .player {
+            margin-bottom: 10px;
+        }
+        .player-name {
+            display: inline-block;
+            width: 150px;
+        }
+        .player-actions {
+            display: inline-block;
+            margin-left: 20px;
+        }
+        .add-player-btn {
+            float: right;
+            margin-top: 30px;
+            margin-right: 100px;
+        }
+        .add-player-link {
+            color: white;
+            text-decoration: none;
+        }
+        .add-player-link:hover {
+            color: lightgrey;
+        }
