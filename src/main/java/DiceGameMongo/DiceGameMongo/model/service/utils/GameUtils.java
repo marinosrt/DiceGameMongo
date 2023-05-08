@@ -24,8 +24,4 @@ public interface GameUtils {
 
     String calculateRate(PlayerDTO playerDTO);
 
-    String setPlayersName(Player player);
-
-    boolean checkString(String name);
-
 }

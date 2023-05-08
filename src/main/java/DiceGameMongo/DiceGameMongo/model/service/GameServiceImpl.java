@@ -7,6 +7,7 @@ import DiceGameMongo.DiceGameMongo.model.dto.PlayerDTO;
 import DiceGameMongo.DiceGameMongo.model.exception.UnexpectedErrorException;
 import DiceGameMongo.DiceGameMongo.model.repository.PlayersRepository;
 import DiceGameMongo.DiceGameMongo.model.service.utils.GameUtils;
+import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,43 +17,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class GameServiceImpl implements GameService, GameUtils {
 
-    @Autowired
-    private ModelMapper modelMapper;
+    private final ModelMapper modelMapper;
 
-    private PlayersRepository playersRepository;
-
-    public GameServiceImpl(PlayersRepository playersRepository) {
-        super();
-        this.playersRepository = playersRepository;
-    }
+    private final PlayersRepository playersRepository;
 
     //region SERVICE CONTROLLER
-
-    @Override
-    public PlayerDTO createPlayer(PlayerDTO playerDTO) {
-        Player playerRequest;
-        PlayerDTO playerDtoResponse;
-
-        try {
-            playerRequest = playerConvertEntity(playerDTO);
-            playerRequest.setName(setPlayersName(playerRequest));
-
-            if (playerRequest.getName().equalsIgnoreCase("")) {
-                return null;
-            } else {
-                playersRepository.save(playerRequest);
-                playerDtoResponse = playerConvertDTO(playerRequest);
-                playerDtoResponse.setSuccessRate(calculateRate(playerDtoResponse));
-
-                return playerDtoResponse;
-            }
-        } catch (UnexpectedErrorException e) {
-            throw new UnexpectedErrorException("Unexpected error!");
-        }
-
-    }
 
     @Override
     public GameDTO playGame(ObjectId id) {
@@ -129,7 +101,7 @@ public class GameServiceImpl implements GameService, GameUtils {
                         }
                     }
 
-                    output = getAverageRate(gameList);
+                    output = getRateFromList(gameList);
                 } else {
                     output = "none";
                 }
@@ -275,7 +247,7 @@ public class GameServiceImpl implements GameService, GameUtils {
                 player = getOptionalPlayer(playerDTO.getId());
 
                 if (!player.getGameList().isEmpty()) {
-                    output = getAverageRate(player.getGameList());
+                    output = getRateFromList(player.getGameList());
                 } else {
                     output = "Still haven't played any game.";
                 }
@@ -287,34 +259,13 @@ public class GameServiceImpl implements GameService, GameUtils {
         }
     }
 
-    public String getAverageRate(List<Game> gameList) {
+    public String getRateFromList(List<Game> gameList) {
         double result = gameList.stream()
                 .mapToDouble(game -> game.getStatus().equals("WINNER") ? 1 : 0)
                 .average()
                 .orElse(0.0) * 100.0;
 
         return String.format("%.2f%%", result);
-    }
-
-    @Override
-    public String setPlayersName(Player player) {String playerName;
-
-        if (player.getName().equalsIgnoreCase("") || player.getName().isEmpty()){
-            playerName = "ANONYMOUS";
-        } else {
-            if(!checkString(player.getName())){ // check if it already exists into the DDBB
-                playerName = player.getName();
-            } else {
-                playerName = "";
-            }
-        }
-
-        return playerName;
-    }
-
-    @Override
-    public boolean checkString(String name) {
-        return playersRepository.findAll().stream().anyMatch(player -> player.getName().equalsIgnoreCase(name));
     }
 
     //endregion UTILS

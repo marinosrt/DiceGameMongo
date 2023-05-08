@@ -1,0 +1,23 @@
+# Defining port
+server:
+  port: 9006
+
+# MONGODB CONFIGURATION
+spring:
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: DiceGame
+      auto-index-creation: true
+    ldap:
+      repositories:
+        enabled: false
+  main:
+    allow-bean-definition-overriding: true
+
+
+
+
+
+
