@@ -16,8 +16,6 @@ public interface GameUtils {
 
     PlayerDTO playerConvertDTO(Player player);
 
-    Player playerConvertEntity(PlayerDTO playerDTO);
-
     GameDTO gameConvertDTO(Game game);
 
     List<PlayerDTO> getSuccessRatePlayers();

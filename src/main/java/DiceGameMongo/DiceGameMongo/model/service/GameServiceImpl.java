@@ -10,7 +10,6 @@ import DiceGameMongo.DiceGameMongo.model.service.utils.GameUtils;
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -207,11 +206,6 @@ public class GameServiceImpl implements GameService, GameUtils {
     @Override
     public PlayerDTO playerConvertDTO(Player player) {
         return modelMapper.map(player, PlayerDTO.class);
-    }
-
-    @Override
-    public Player playerConvertEntity(PlayerDTO playerDTO) {
-        return modelMapper.map(playerDTO, Player.class);
     }
 
     @Override

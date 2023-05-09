@@ -12,7 +12,4 @@ public interface PlayersRepository extends MongoRepository<Player, ObjectId> {
 
     Optional<Player> findByEmail(String email);
 
-    //Optional<Player> existByName(String name);
-    //boolean existByName(String name);
-
 }

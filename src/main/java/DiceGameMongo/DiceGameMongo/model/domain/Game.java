@@ -12,11 +12,16 @@ public class Game {
     @Id
     private ObjectId id;
 
-    private final int dice1 = (int) (Math.random() * 6 + 1);
+    private int dice1;
 
-    private final int dice2 = (int) (Math.random() * 6 + 1);
+    private int dice2;
 
     private String status;
+
+    {
+        dice1 = (int) (Math.random() * 6 + 1);
+        dice2 = (int) (Math.random() * 6 + 1);
+    }
 
     public Game() {
         this.status = calculate();
